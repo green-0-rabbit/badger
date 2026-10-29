@@ -190,6 +190,10 @@ type Throttle struct {
 	ch        chan struct{}
 	errCh     chan error
 	finishErr error
+
+	// doErr is the first error that Do took from errCh, so that Finish returns it too.
+	doErrMu sync.Mutex
+	doErr   error
 }
 
 // NewThrottle creates a new throttle with a max number of workers.
@@ -211,6 +215,11 @@ func (t *Throttle) Do() error {
 			return nil
 		case err := <-t.errCh:
 			if err != nil {
+				t.doErrMu.Lock()
+				if t.doErr == nil {
+					t.doErr = err
+				}
+				t.doErrMu.Unlock()
 				return err
 			}
 		}
@@ -245,6 +254,9 @@ func (t *Throttle) Finish() error {
 				return
 			}
 		}
+		t.doErrMu.Lock()
+		t.finishErr = t.doErr
+		t.doErrMu.Unlock()
 	})
 
 	return t.finishErr

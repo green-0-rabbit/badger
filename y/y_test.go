@@ -372,3 +372,15 @@ func TestSafeCopy_Issue2067(t *testing.T) {
 		})
 	}
 }
+
+// Finish returns a worker's error even when Do has already returned it to the caller.
+func TestThrottleFinishReturnsErrorTakenByDo(t *testing.T) {
+	th := NewThrottle(1)
+	require.NoError(t, th.Do())
+	th.Done(fmt.Errorf("worker failed"))
+	// Do picks a free slot or the error at random: call it until it returns the error.
+	for th.Do() == nil {
+		th.Done(nil)
+	}
+	require.Error(t, th.Finish())
+}
