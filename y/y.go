@@ -246,7 +246,7 @@ func (t *Throttle) Done(err error) {
 	t.wg.Done()
 }
 
-// Finish waits until all workers have finished working. It would return any error passed by Done.
+// Finish waits until all workers have finished working. It returns the first error passed to Done.
 // If Finish is called multiple time, it will wait for workers to finish only once(first time).
 // From next calls, it will return same error as found on first call.
 func (t *Throttle) Finish() error {
@@ -254,12 +254,6 @@ func (t *Throttle) Finish() error {
 		t.wg.Wait()
 		close(t.ch)
 		close(t.errCh)
-		for err := range t.errCh {
-			if err != nil {
-				t.finishErr = err
-				return
-			}
-		}
 		t.firstErrMu.Lock()
 		t.finishErr = t.firstErr
 		t.firstErrMu.Unlock()

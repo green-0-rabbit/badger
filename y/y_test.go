@@ -409,3 +409,17 @@ func TestThrottleDoneDoesNotBlockWhenErrChIsFull(t *testing.T) {
 	}
 	require.ErrorIs(t, th.Finish(), first)
 }
+
+func TestThrottleFinishReturnsTheFirstError(t *testing.T) {
+	th := NewThrottle(2)
+	first := fmt.Errorf("first worker failed")
+	require.NoError(t, th.Do())
+	require.NoError(t, th.Do())
+	th.Done(first)
+	// Do picks a free slot or the error at random: call it until it returns the error.
+	for th.Do() == nil {
+		th.Done(nil)
+	}
+	th.Done(fmt.Errorf("second worker failed"))
+	require.ErrorIs(t, th.Finish(), first)
+}
