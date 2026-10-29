@@ -94,3 +94,21 @@ func TestCompactionOnFullDisk(t *testing.T) {
 	require.NoError(t, os.Remove(filler))
 	require.NoError(t, db.Close())
 }
+
+// Discard stats that cannot grow, as on a full disk, drop the update instead of ending the process.
+func TestDiscardStatsOnFullDisk(t *testing.T) {
+	dir := mountTmpfs(t, 2<<20)
+	ds, err := InitDiscardStats(DefaultOptions(dir))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, ds.Close(-1)) }()
+	// One page holds 255 entries and the empty slot after them.
+	require.NoError(t, ds.Truncate(4<<10))
+	fillDisk(t, dir)
+
+	for fid := uint32(1); fid < 256; fid++ {
+		require.Equal(t, int64(1), ds.Update(fid, 1))
+	}
+	require.Zero(t, ds.Update(256, 1), "an update that needs the file to grow")
+	require.Equal(t, 255, ds.nextEmptySlot)
+	require.Equal(t, int64(2), ds.Update(1, 1), "an update of an entry kept")
+}
