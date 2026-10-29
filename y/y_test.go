@@ -384,3 +384,28 @@ func TestThrottleFinishReturnsErrorTakenByDo(t *testing.T) {
 	}
 	require.Error(t, th.Finish())
 }
+
+func TestThrottleDoneDoesNotBlockWhenErrChIsFull(t *testing.T) {
+	th := NewThrottle(1)
+	first := fmt.Errorf("first worker failed")
+	// Do picks a free slot or the error at random: refill errCh until Do takes the slot while
+	// errCh is full.
+	for {
+		require.NoError(t, th.Do())
+		th.Done(first)
+		if th.Do() == nil {
+			break
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		th.Done(fmt.Errorf("second worker failed"))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Done blocked on the full errCh")
+	}
+	require.ErrorIs(t, th.Finish(), first)
+}
