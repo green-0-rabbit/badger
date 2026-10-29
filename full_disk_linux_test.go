@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dgraph-io/ristretto/v2/z"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -70,6 +71,21 @@ func fillInodes(t *testing.T, dir string) string {
 	}
 }
 
+// skipWithoutAllocation skips the test unless a new memory-mapped file in dir has its blocks
+// allocated, as with dgraph-io/ristretto#508. A write into a sparse mapping on a full disk ends the
+// process with SIGBUS instead of returning ENOSPC.
+func skipWithoutAllocation(t *testing.T, dir string) {
+	t.Helper()
+	mf, err := z.OpenMmapFile(filepath.Join(dir, "probe"), os.O_CREATE|os.O_RDWR|os.O_EXCL, 1<<20)
+	require.ErrorIs(t, err, z.NewFile)
+	var st unix.Stat_t
+	require.NoError(t, unix.Fstat(int(mf.Fd.Fd()), &st))
+	require.NoError(t, mf.Delete())
+	if st.Blocks*512 < 1<<20 {
+		t.Skip("needs memory-mapped files whose blocks are allocated (dgraph-io/ristretto#508)")
+	}
+}
+
 // requireKeys checks that db holds every key in keys with its value.
 func requireKeys(t *testing.T, db *DB, keys map[string][]byte) {
 	t.Helper()
@@ -105,6 +121,7 @@ func TestFullDisk(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := mountTmpfs(t, 48<<20)
+			skipWithoutAllocation(t, dir)
 			ballast := filepath.Join(dir, "ballast")
 			require.NoError(t, os.WriteFile(ballast, make([]byte, 8<<20), 0666))
 			opt := getTestOptions(filepath.Join(dir, "db")).
@@ -221,6 +238,7 @@ func TestCompactionOnFullDisk(t *testing.T) {
 // Discard stats that cannot grow, as on a full disk, drop the update instead of ending the process.
 func TestDiscardStatsOnFullDisk(t *testing.T) {
 	dir := mountTmpfs(t, 2<<20)
+	skipWithoutAllocation(t, dir)
 	ds, err := InitDiscardStats(DefaultOptions(dir))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, ds.Close(-1)) }()
