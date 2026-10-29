@@ -88,6 +88,7 @@ func TestCompactionOnFullDisk(t *testing.T) {
 		WithValueThreshold(64 << 10)
 	db, err := Open(opt)
 	require.NoError(t, err)
+	defer func() { require.NoError(t, db.Close()) }()
 	acked := make(map[string][]byte)
 	for i := 0; len(db.Tables()) < 2; i++ {
 		require.Less(t, i, 4096, "two memtables were not flushed")
@@ -102,9 +103,10 @@ func TestCompactionOnFullDisk(t *testing.T) {
 	// taking the free blocks does not: the file is created sparse, and the write into its mapping
 	// ends the process with SIGBUS.
 	fill := fillInodes(t, dir)
+	defer func() {
+		require.NoError(t, os.RemoveAll(fill))
+		db.startCompactions()
+	}()
 	require.ErrorIs(t, db.lc.doCompact(0, compactionPriority{level: 0, score: 1}), syscall.ENOSPC)
 	requireKeys(t, db, acked)
-	db.startCompactions()
-	require.NoError(t, os.RemoveAll(fill))
-	require.NoError(t, db.Close())
 }
