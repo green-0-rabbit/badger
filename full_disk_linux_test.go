@@ -49,7 +49,7 @@ func fillDisk(t *testing.T, dir string) string {
 	f, err := os.Create(path)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, f.Close()) }()
-	require.NoError(t, unix.Fallocate(int(f.Fd()), 0, 0, int64(st.Bavail)*st.Bsize))
+	require.NoError(t, unix.Fallocate(int(f.Fd()), 0, 0, int64(st.Bavail)*int64(st.Bsize)))
 	return path
 }
 
