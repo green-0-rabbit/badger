@@ -21,15 +21,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// mountTmpfs mounts a tmpfs of size bytes on a new directory. It needs root, and skips the test
-// without it.
+// mountTmpfs mounts a tmpfs of size bytes on a new directory. It needs root with CAP_SYS_ADMIN,
+// and skips the test without them.
 func mountTmpfs(t *testing.T, size int) string {
 	t.Helper()
 	if os.Geteuid() != 0 {
 		t.Skip("mounting a small filesystem needs root")
 	}
 	dir := t.TempDir()
-	require.NoError(t, unix.Mount("tmpfs", dir, "tmpfs", 0, fmt.Sprintf("size=%d", size)))
+	err := unix.Mount("tmpfs", dir, "tmpfs", 0, fmt.Sprintf("size=%d", size))
+	if errors.Is(err, unix.EPERM) {
+		t.Skip("mounting a small filesystem needs CAP_SYS_ADMIN")
+	}
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, unix.Unmount(dir, unix.MNT_DETACH)) })
 	return dir
 }
