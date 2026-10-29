@@ -984,8 +984,9 @@ func (s *levelsController) compactBuildTables(
 	for _, kr := range cd.splits {
 		// Initiate Do here so we can register the goroutines for buildTables too.
 		if err := inflightBuilders.Do(); err != nil {
+			// Finish below waits for the subcompactions already started, and returns err.
 			s.kv.opt.Errorf("cannot start subcompaction: %+v", err)
-			return nil, nil, err
+			break
 		}
 		go func(kr keyRange) {
 			defer inflightBuilders.Done(nil)
