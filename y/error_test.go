@@ -31,3 +31,13 @@ func TestCombineErrorsWithBothErrorsAsNil(t *testing.T) {
 	combinedError := CombineErrors(nil, nil)
 	require.NoError(t, combinedError)
 }
+
+func TestWrapKeepsTheErrorChain(t *testing.T) {
+	defer func(old bool) { debugMode = old }(debugMode)
+	cause := errors.New("no space left on device")
+	for _, mode := range []bool{false, true} {
+		debugMode = mode
+		require.ErrorIs(t, Wrap(cause, "while writing"), cause)
+		require.ErrorIs(t, Wrapf(cause, "while writing file %d", 1), cause)
+	}
+}
