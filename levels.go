@@ -905,7 +905,7 @@ func (s *levelsController) subcompact(it y.Iterator, kr keyRange, cd compactDef,
 		numBuilds++
 		if err := inflightBuilders.Do(); err != nil {
 			// Can't return from here, until I decrRef all the tables that I built so far.
-			builder.Finish()
+			builder.Done()
 			builder.Close()
 			break
 		}
